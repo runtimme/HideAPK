@@ -2,7 +2,7 @@ package com.shocker.hideapk.hide
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import com.shocker.hideapk.BuildConfig.APPLICATION_ID
 import com.shocker.hideapk.signing.JarMap
@@ -21,12 +21,12 @@ import java.security.SecureRandom
 
 object HideAPK {
 
+    private const val TAG = "HIDE"
     private const val ALPHA = "abcdefghijklmnopqrstuvwxyz"
     private const val ALPHADOTS = "$ALPHA....."
     private const val ANDROID_MANIFEST = "AndroidManifest.xml"
 
-
-
+    // Generate random package names
     private fun genPackageName(): String {
         val random = SecureRandom()
         val len = 5 + random.nextInt(15)
@@ -52,23 +52,30 @@ object HideAPK {
 
     fun patch(
         context: Context,
-        apk: File, out: OutputStream,
-        pkg: String, label: CharSequence
+        sourceApkFile: File,
+        patchApk: OutputStream,
+        pkg: String,
+        label: CharSequence
     ): Boolean {
-        val info = context.packageManager.getPackageArchiveInfo(apk.path, 0) ?: return false
-        val name = info.applicationInfo.nonLocalizedLabel.toString()
-        try {
-            JarMap.open(apk, true).use { jar ->
-                val je = jar.getJarEntry(ANDROID_MANIFEST)
-                val xml = AXML(jar.getRawData(je))
+        // 根据apk文件获取Apk文件获取 packageInfo
+        val sourceAppInfo =
+            context.packageManager.getPackageArchiveInfo(sourceApkFile.path, 0) ?: return false
 
-                if (!xml.findAndPatch(APPLICATION_ID to pkg, name to label.toString()))
+        val sourceAppLabel = sourceAppInfo.applicationInfo.nonLocalizedLabel.toString()
+        try {
+            JarMap.open(sourceApkFile, true).use { jar ->
+                val je = jar.getJarEntry(ANDROID_MANIFEST)
+                val xml = AXML(jar.getRawData(je)) //打开原apk的AndroidManifest.xml文件
+
+                // path Manifest.xml file
+                if (!xml.findAndPatch(APPLICATION_ID to pkg, sourceAppLabel to label.toString()))
                     return false
 
                 // Write apk changes
                 jar.getOutputStream(je).use { it.write(xml.bytes) }
                 val keys = Keygen(context)
-                SignApk.sign(keys.cert, keys.key, jar, out)
+                // sign patched apk file
+                SignApk.sign(keys.cert, keys.key, jar, patchApk)
                 return true
             }
         } catch (e: Exception) {
@@ -83,23 +90,30 @@ object HideAPK {
         onFailure: Runnable,
         path: String
     ): Boolean {
-//        val stub = File(activity.cacheDir, "stub.apk")
+        // Get its own apk file "/data/app/~~ElZ8Krroj9NnI_4637t52g==/com.shocker.hideapk-EQFbaRvebkdstrVAQBck8g==/base.apk"
         val stub = File(path)
 
-        // Generate a new random package name and signature
+        // Generate a new random package name and signature  "/data/user/0/com.shocker.hideapk/cache/patched.apk"
         val repack = File(activity.cacheDir, "patched.apk")
 
-        val pkg = genPackageName()
+        val randomPkg = genPackageName()
 
-        if (!patch(activity, stub, FileOutputStream(repack), pkg, label))
+        Log.d(TAG, "random package name :$randomPkg")
+
+        if (!patch(activity, stub, FileOutputStream(repack), randomPkg, label))
             return false
 
-        // Install
         val cmd = "pm install ${repack.absolutePath}"
-        return if(Shell.su(cmd).exec().isSuccess){
-            UiThreadHandler.run { Toast.makeText(activity, "随机包名安装成功,应用名:${label}", Toast.LENGTH_LONG).show() }
+        return if (Shell.su(cmd).exec().isSuccess) {
+            UiThreadHandler.run {
+                Toast.makeText(
+                    activity,
+                    "随机包名安装成功,应用名:${label},",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             true
-        }else{
+        } else {
             UiThreadHandler.run { Toast.makeText(activity, "随机包名安装失败", Toast.LENGTH_LONG).show() }
             false
         }
@@ -113,7 +127,7 @@ object HideAPK {
 
         }
         val success = withContext(Dispatchers.IO) {
-            patchAndHide(activity, label, onFailure,path)
+            patchAndHide(activity, label, onFailure, path)
         }
         if (!success) onFailure.run()
     }
