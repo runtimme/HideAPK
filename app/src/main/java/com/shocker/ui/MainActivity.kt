@@ -28,17 +28,4 @@ class MainActivity : AppCompatActivity() {
             HideAPK.hide(activity,"randomName",getApplicationInfo().sourceDir)
         }
     }
-
-    /**
-     * A native method that is implemented by the 'hideapk' native library,
-     * which is packaged with this application.
-     */
-    external fun stringFromJNI(): String
-
-    companion object {
-        // Used to load the 'hideapk' library on application startup.
-        init {
-            System.loadLibrary("hideapk")
-        }
-    }
 }
