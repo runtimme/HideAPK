@@ -77,7 +77,7 @@ object HideAPK {
         }
     }
 
-    private suspend fun patchAndHide(
+    private fun patchAndHide(
         activity: Activity,
         label: String,
         onFailure: Runnable,
@@ -108,7 +108,6 @@ object HideAPK {
 
     //label:应用的名称
     //path:原apk安装包路径
-    @Suppress("DEPRECATION")
     suspend fun hide(activity: Activity, label: String, path: String) {
         val onFailure = Runnable {
 

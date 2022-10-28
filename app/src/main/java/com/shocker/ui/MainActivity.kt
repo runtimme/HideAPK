@@ -20,12 +20,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Example of a call to a native method
-        binding.sampleText.text = stringFromJNI()
 
         activity=this
         GlobalScope.launch {
-            HideAPK.hide(activity,"randomName",getApplicationInfo().sourceDir)
+            HideAPK.hide(activity,"randomName", applicationInfo.sourceDir)
         }
     }
 }
